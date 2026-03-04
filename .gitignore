@@ -1,0 +1,17 @@
+.claude
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+.env
+*.pdf
+*.csv
+.DS_Store
+Thumbs.db
+testar.py
+esbagaçar.py
