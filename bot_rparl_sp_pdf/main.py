@@ -45,7 +45,7 @@ CONTA = "505052"
 DV_CONTA = "9"
 AGENCIA = "300"
 DV_AGENCIA = "0"
-TIPO = "CREDIT"
+TIPO = ""
 
 COLUNAS_CSV = [
     "nmPessoa",
