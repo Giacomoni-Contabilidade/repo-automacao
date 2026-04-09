@@ -119,7 +119,7 @@ def detectar_evento_credito(texto: str) -> bool:
     )
 
 
-def extrair_info_linha_valor(line: str) -> dict | None:
+def extrair_info_linha_valor_layout_legado(line: str) -> dict | None:
     valor_match = re.search(r"(?P<valor>[\d.]+,\d{2})\s*\((?P<sinal>[+-])\)\s*$", line)
     if not valor_match:
         return None
@@ -127,7 +127,7 @@ def extrair_info_linha_valor(line: str) -> dict | None:
     antes_valor = line[:valor_match.start()].rstrip()
     linha_match = re.match(
         r"\s*(?P<lote>\d+)"
-        r"(?:\s+(?P<documento>\d+))?"
+        r"(?:\s+(?P<documento>[\d.]+))?"
         r"(?:\s+(?P<historico>.*?))?\s*$",
         antes_valor,
     )
@@ -135,6 +135,9 @@ def extrair_info_linha_valor(line: str) -> dict | None:
         return None
 
     return {
+        "layout": "legado",
+        "data": "",
+        "descricao": "",
         "lote": (linha_match.group("lote") or "").strip(),
         "documento": (linha_match.group("documento") or "").strip(),
         "historico": (linha_match.group("historico") or "").strip(),
@@ -143,9 +146,52 @@ def extrair_info_linha_valor(line: str) -> dict | None:
     }
 
 
-def historico_eh_resumo(historico: str) -> bool:
-    chave = normalizar_chave(historico)
-    return chave.startswith("SALDO") or chave.startswith("SALDO ANTERIOR")
+def extrair_info_linha_valor_layout_bb(line: str) -> dict | None:
+    valor_match = re.match(
+        r"\s*(?P<data>\d{2}/\d{2}/\d{4})"
+        r"\s+(?P<ag_origem>\d+)"
+        r"\s+(?P<lote>\d+)"
+        r"\s+(?P<resto>.+?)"
+        r"\s+(?P<valor>[\d.]+,\d{2})"
+        r"\s+(?P<sinal>[CD])"
+        r"(?:\s+[\d.]+,\d{2}\s+[CD])?\s*$",
+        line,
+    )
+    if not valor_match:
+        return None
+
+    resto = normalizar_espacos(valor_match.group("resto"))
+    documento = ""
+    descricao = resto
+
+    doc_match = re.match(r"^(?P<descricao>.+?)\s+(?P<documento>[\d.]+)$", resto)
+    if doc_match:
+        descricao = normalizar_espacos(doc_match.group("descricao"))
+        documento = doc_match.group("documento")
+
+    return {
+        "layout": "bb_inline",
+        "data": valor_match.group("data"),
+        "descricao": descricao,
+        "lote": valor_match.group("lote"),
+        "documento": documento,
+        "historico": "",
+        "valor": valor_match.group("valor"),
+        "sinal": "+" if valor_match.group("sinal") == "C" else "-",
+    }
+
+
+def extrair_info_linha_valor(line: str) -> dict | None:
+    return (
+        extrair_info_linha_valor_layout_legado(line)
+        or extrair_info_linha_valor_layout_bb(line)
+    )
+
+
+def texto_eh_resumo(texto: str) -> bool:
+    chave = normalizar_chave(texto)
+    chave_compacta = chave.replace(" ", "")
+    return chave.startswith("SALDO") or chave_compacta.startswith("SALDO")
 
 
 def coletar_complementos(lines: list[str], start_index: int) -> list[str]:
@@ -203,16 +249,24 @@ def extrair_creditos_do_texto(texto: str) -> list[dict]:
         info_linha = extrair_info_linha_valor(line)
         if not info_linha or info_linha["sinal"] != "+":
             continue
-        if historico_eh_resumo(info_linha["historico"]):
+        texto_principal = info_linha.get("descricao") or info_linha["historico"]
+        if texto_eh_resumo(texto_principal):
             continue
 
-        data_lancamento = ""
-        descricao_lancamento = ""
+        data_lancamento = info_linha.get("data", "")
+        descricao_lancamento = info_linha.get("descricao", "")
 
         for prev_idx in range(idx - 1, max(-1, idx - 8), -1):
+            if data_lancamento and descricao_lancamento:
+                break
+
             stripped = lines[prev_idx].strip()
             if not stripped:
                 continue
+            if stripped == "00/00/0000":
+                break
+            if data_lancamento and extrair_info_linha_valor(lines[prev_idx]):
+                break
 
             if not data_lancamento and linha_eh_data(stripped) and stripped != "00/00/0000":
                 data_lancamento = stripped
@@ -222,16 +276,15 @@ def extrair_creditos_do_texto(texto: str) -> list[dict]:
                 descricao_lancamento = stripped
                 continue
 
-            if data_lancamento and descricao_lancamento:
-                break
-
         if not data_lancamento or not descricao_lancamento:
             continue
 
         complementos = coletar_complementos(lines, idx)
-        memo_partes = [descricao_lancamento, info_linha["historico"], *complementos]
+        detalhes = [parte for parte in [info_linha["historico"], *complementos] if parte]
+        memo_partes = [descricao_lancamento, *detalhes]
         memo = " | ".join(parte for parte in memo_partes if parte)
-        nome, cpf = extrair_nome_cpf(info_linha["historico"])
+        base_nome_cpf = info_linha["historico"] or (detalhes[0] if detalhes else "")
+        nome, cpf = extrair_nome_cpf(base_nome_cpf)
 
         registros.append({
             "nmPessoa": nome,
