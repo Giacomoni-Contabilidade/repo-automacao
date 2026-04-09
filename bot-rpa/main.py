@@ -50,10 +50,14 @@ def processar_texto_bloco(texto_completo: str, num_doc: str, data_doc: str) -> l
     """Processa o texto do PDF e extrai os dados de cada pessoa"""
     dados = []
 
-    # Encontrar onde começa cada pessoa
-    # Padrão: Numero GRUDADO no Nome + espaço + "Contr:"
-    # Ex: "162ALESSANDRA RODRIGUES FREITAS Contr:"
-    iterador_pessoas = re.finditer(r'(\d{1,5})([A-ZÁÉÍÓÚÃÕÇ][A-ZÁÉÍÓÚÃÕÇ\s\.\~]+?)\s+Contr:', texto_completo)
+    # Encontrar onde começa cada pessoa.
+    # O export do sistema varia entre:
+    # - "162ALESSANDRA RODRIGUES FREITASContr:"
+    # - "29 BRUNO MIGUEL DA SILVA CARDOSOContr:"
+    iterador_pessoas = re.finditer(
+        r'(?<!\d)(\d{1,5})\s*([A-ZÁÉÍÓÚÃÕÇ][A-ZÁÉÍÓÚÃÕÇ\s\.\~\-]+?)\s*Contr:',
+        texto_completo,
+    )
 
     pessoas_encontradas = list(iterador_pessoas)
 
@@ -87,14 +91,14 @@ def processar_texto_bloco(texto_completo: str, num_doc: str, data_doc: str) -> l
             cod_spca = "212"
             sit = "2"  # Situação 2 exige Qtd e Custo na planilha
             desc = "SERVICOS DE LIMPEZA - RPA"
-        elif "MOTORISTA" in bloco_texto or "211 " in bloco_texto:
-            cod_spca = "264"  # Transporte
-            sit = "5"        # Situação 5 exige Placa
-            desc = "SERVICOS MOTORISTA - RPA"
         elif "NEGRITUDE" in bloco_texto or "221 " in bloco_texto:
             desc = "DIRIGENTE PARTIDARIO - NEGRITUDE"
         elif "MULHERES" in bloco_texto or "217 " in bloco_texto:
             desc = "DIRIGENTE PARTIDARIO - MULHERES"
+        elif "MOTORISTA" in bloco_texto:
+            cod_spca = "264"  # Transporte
+            sit = "5"        # Situação 5 exige Placa
+            desc = "SERVICOS MOTORISTA - RPA"
 
         # Monta o registro
         dados.append({
