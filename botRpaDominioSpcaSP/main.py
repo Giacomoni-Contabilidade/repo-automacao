@@ -74,7 +74,7 @@ def somente_cnpj(texto: str) -> str:
 def extrair_texto_pdf(pdf_bytes: bytes) -> str:
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
         return "\n".join(
-            page.extract_text() for page in pdf.pages if page.extract_text()
+            page.extract_text(x_tolerance=0.5) for page in pdf.pages if page.extract_text(x_tolerance=0.5)
         )
 
 
@@ -125,14 +125,20 @@ def extrair_descricao_principal(bloco: str) -> tuple[str, str, str, str]:
     linhas = [linha.strip() for linha in bloco.splitlines() if linha.strip()]
 
     for linha in linhas:
-        match = re.match(
-            r"^(?P<cd>\d{3})(?P<desc>.*?)(?P<vr>[\d.]+,\d{2})\s+[\d.]+,\d{2}P\b",
+        # Padrão mais flexível: busca código, descrição e os valores (mesmo que grudados)
+        # O segundo valor seguido de P é o mais confiável para identificar a linha de provento
+        match = re.search(
+            r"^(?P<cd>\d{3})\s*(?P<desc>.*?)(?P<vr>[\d.]+,\d{2})\s+[\d.]+,\d{2}\s*P\b",
             linha,
         )
         if not match:
             continue
 
         descricao = limpar_espacos(match.group("desc"))
+        # Remove caracteres lixo que podem ter grudado na descrição vindos do valor
+        # Como as descrições padrões não possuem dígitos, removemos do primeiro dígito em diante
+        # que possa ter vazado do campo de valor (Ex: ADMINISTRATIV4O -> ADMINISTRATIVO)
+        descricao = re.sub(r"\d.*$", "", descricao).strip()
         descricao = re.sub(r"\s*-\s*$", "", descricao).strip()
         descricao = descricao.rstrip(" .")
 
@@ -162,9 +168,16 @@ def extrair_registros_do_texto(texto: str, competencia_padrao: str | None = None
 
         nome = extrair_nome(bloco)
         nr_cpf = extrair_cpf(bloco)
-        cd_descricao_gasto, descricao, vr_gasto, descricao_resumida = extrair_descricao_principal(bloco)
+        cd_descricao_gasto, descricao, vr_gasto_fallback, descricao_resumida = extrair_descricao_principal(bloco)
+        
+        # Tenta extrair valores de campos mais confiáveis no bloco
+        vr_gasto = extrair_campo(bloco, r"Proventos:\s*([\d.,]+)")
+        if not vr_gasto or vr_gasto == "0":
+            vr_gasto = vr_gasto_fallback
+
         vr_total_documento = extrair_campo(bloco, r"L[íi]quido:\s*([\d.,]+)")
-        if not vr_total_documento:
+        if not vr_total_documento or vr_total_documento == "0":
+            # Fallback para regex genérico de Líquido caso o padrão acima falhe
             vr_total_documento = extrair_campo(bloco, r"L.quido:\s*([\d.,]+)")
 
 
