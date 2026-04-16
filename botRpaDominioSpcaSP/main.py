@@ -167,6 +167,13 @@ def extrair_registros_do_texto(texto: str, competencia_padrao: str | None = None
         if not vr_total_documento:
             vr_total_documento = extrair_campo(bloco, r"L.quido:\s*([\d.,]+)")
 
+
+        if "MULHERES" in descricao_resumida:
+            cd_descricao_gasto = "220"
+        else:
+            cd_descricao_gasto = "221"
+
+
         registros.append(
             {
                 "nrCnpjPrestador": metadados["nrCnpjPrestador"],
@@ -178,7 +185,7 @@ def extrair_registros_do_texto(texto: str, competencia_padrao: str | None = None
                 "vrTotalDocumento": vr_total_documento,
                 "cdDescricaoGasto": cd_descricao_gasto,
                 "vrGasto": vr_gasto,
-                "descricaoResumida": descricao_resumida,
+                "descricaoResumida": f"PAGAMENTO CONFORME RPA {descricao_resumida}",
             }
         )
 

@@ -1,0 +1,131 @@
+services:
+  - type: web
+    name: bot-rpa
+    runtime: python
+    plan: free
+    region: virginia
+    autoDeployTrigger: commit
+    rootDir: bot-rpa
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /openapi.json
+    buildFilter:
+      paths:
+        - bot-rpa/**
+  - type: web
+    name: bot-contrib-parlamentares-dir-nacional
+    runtime: python
+    plan: free
+    region: virginia
+    autoDeployTrigger: commit
+    rootDir: botContribParlamentaresDirNacional
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /openapi.json
+    buildFilter:
+      paths:
+        - botContribParlamentaresDirNacional/**
+  - type: web
+    name: bot-contrib-parlamentares-sp
+    runtime: python
+    plan: free
+    region: virginia
+    autoDeployTrigger: commit
+    rootDir: botContribParlamentaresSP
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /openapi.json
+    buildFilter:
+      paths:
+        - botContribParlamentaresSP/**
+  - type: web
+    name: bot-doacoes-dir-nacional
+    runtime: python
+    plan: free
+    region: virginia
+    autoDeployTrigger: commit
+    rootDir: botDoacoesDirNacional
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /openapi.json
+    buildFilter:
+      paths:
+        - botDoacoesDirNacional/**
+  - type: web
+    name: bot-faturas-nix
+    runtime: python
+    plan: free
+    region: virginia
+    autoDeployTrigger: commit
+    rootDir: botFaturasNIX
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /openapi.json
+    buildFilter:
+      paths:
+        - botFaturasNIX/**
+  - type: web
+    name: bot-fundo-partidario-dir-nacional
+    runtime: python
+    plan: free
+    region: virginia
+    autoDeployTrigger: commit
+    rootDir: botFundoPartidarioDirNacional
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /openapi.json
+    buildFilter:
+      paths:
+        - botFundoPartidarioDirNacional/**
+  - type: web
+    name: bot-proprietarios-aluga-165
+    runtime: python
+    plan: free
+    region: virginia
+    autoDeployTrigger: commit
+    rootDir: botProprietariosAluga165
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /openapi.json
+    buildFilter:
+      paths:
+        - botProprietariosAluga165/**
+  - type: web
+    name: bot-rpa-dominio-spca-sp
+    runtime: python
+    plan: free
+    region: virginia
+    autoDeployTrigger: commit
+    rootDir: botRpaDominioSpcaSP
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /openapi.json
+    buildFilter:
+      paths:
+        - botRpaDominioSpcaSP/**
+  - type: web
+    name: bot-rpa-dominio-vlr-bruto
+    runtime: python
+    plan: free
+    region: virginia
+    autoDeployTrigger: commit
+    rootDir: botRpaDominioVlrBruto
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /openapi.json
+    buildFilter:
+      paths:
+        - botRpaDominioVlrBruto/**
+  - type: web
+    name: bot-rpa-vlr-liq-dir-nacional
+    runtime: python
+    plan: free
+    region: virginia
+    autoDeployTrigger: commit
+    rootDir: botRpaVlrLiqDirNacional
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /openapi.json
+    buildFilter:
+      paths:
+        - botRpaVlrLiqDirNacional/**
