@@ -4,11 +4,9 @@ Parser compartilhado para extratos OFX e PDF do bot de repasses municipais de SP
 
 from __future__ import annotations
 
-import csv
 import io
 import re
 import unicodedata
-from functools import lru_cache
 from pathlib import Path
 
 try:
@@ -29,7 +27,170 @@ TP_FUNDO_PARTIDARIO = "2"
 AGENCIA_ORIGEM_OFX = "1230"
 DV_AGENCIA_ORIGEM_OFX = "0"
 
-DESTINOS_CSV_PATH = Path(__file__).with_name("repasses_diretorios_municipais_sp_2025.csv")
+DESTINOS_POR_EXTRATO = {
+    "610179000085870": {
+        "municipio": "Araçatuba",
+        "cnpj": "16119795000191",
+        "banco": "001",
+        "agencia": "0179",
+        "dv_agencia": "1",
+        "conta": "85870",
+        "dv_conta": "6",
+    },
+    "610079000071664": {
+        "municipio": "Botucatu",
+        "cnpj": "15795106000104",
+        "banco": "001",
+        "agencia": "0079",
+        "dv_agencia": "5",
+        "conta": "71664",
+        "dv_conta": "2",
+    },
+    "613015000041107": {
+        "municipio": "Bauru",
+        "cnpj": "25499754000169",
+        "banco": "001",
+        "agencia": "3015",
+        "dv_agencia": "5",
+        "conta": "41107",
+        "dv_conta": "8",
+    },
+    "610053000098515": {
+        "municipio": "Franca",
+        "cnpj": "16517409000110",
+        "banco": "001",
+        "agencia": "0053",
+        "dv_agencia": "1",
+        "conta": "98515",
+        "dv_conta": "5",
+    },
+    "610175000107510": {
+        "municipio": "São José dos Campos",
+        "cnpj": "16540224000126",
+        "banco": "001",
+        "agencia": "0175",
+        "dv_agencia": "9",
+        "conta": "107510",
+        "dv_conta": "1",
+    },
+    "610295000095451": {
+        "municipio": "São Carlos",
+        "cnpj": "10239560000157",
+        "banco": "001",
+        "agencia": "295",
+        "dv_agencia": "x",
+        "conta": "95451",
+        "dv_conta": "9",
+    },
+    "610636000100078": {
+        "municipio": "Guarulhos",
+        "cnpj": "09674183000103",
+        "banco": "001",
+        "agencia": "0636",
+        "dv_agencia": "x",
+        "conta": "100078",
+        "dv_conta": "0",
+    },
+    "611451000035998": {
+        "municipio": "Guaratinguetá",
+        "cnpj": "38732569000114",
+        "banco": "001",
+        "agencia": "1451",
+        "dv_agencia": "6",
+        "conta": "35998",
+        "dv_conta": "x",
+    },
+    "616710000044657": {
+        "municipio": "Suzano",
+        "cnpj": "15687476000110",
+        "banco": "001",
+        "agencia": "6710",
+        "dv_agencia": "5",
+        "conta": "44657",
+        "dv_conta": "2",
+    },
+    "617010000020738": {
+        "municipio": "Cotia",
+        "cnpj": "10174922000179",
+        "banco": "001",
+        "agencia": "7010",
+        "dv_agencia": "6",
+        "conta": "20738",
+        "dv_conta": "1",
+    },
+    "611529000068798": {
+        "municipio": "Barueri",
+        "cnpj": "15867242000154",
+        "banco": "001",
+        "agencia": "1529",
+        "dv_agencia": "6",
+        "conta": "68798",
+        "dv_conta": "7",
+    },
+    "613018000033663": {
+        "municipio": "São José do Rio Preto",
+        "cnpj": "09647887000189",
+        "banco": "001",
+        "agencia": "3018",
+        "dv_agencia": "x",
+        "conta": "36663",
+        "dv_conta": "7",
+    },
+    "616535000043403": {
+        "municipio": "Mogi das Cruzes",
+        "cnpj": "09631731000100",
+        "banco": "001",
+        "agencia": "6534",
+        "dv_agencia": "8",
+        "conta": "43403",
+        "dv_conta": "5",
+    },
+    "613304000032299": {
+        "municipio": "Santo André",
+        "cnpj": "12183601000166",
+        "banco": "001",
+        "agencia": "3304",
+        "dv_agencia": "9",
+        "conta": "32299",
+        "dv_conta": "7",
+    },
+    "616511000066669": {
+        "municipio": "Sorocaba",
+        "cnpj": "09619773000125",
+        "banco": "001",
+        "agencia": "6511",
+        "dv_agencia": "0",
+        "conta": "66669",
+        "dv_conta": "6",
+    },
+    "612466000047364": {
+        "municipio": "Poá",
+        "cnpj": "09685361000193",
+        "banco": "001",
+        "agencia": "2466",
+        "dv_agencia": "x",
+        "conta": "47364",
+        "dv_conta": "2",
+    },
+    "610172000089569": {
+        "municipio": "Rio Claro",
+        "cnpj": "23845461000160",
+        "banco": "001",
+        "agencia": "0172",
+        "dv_agencia": "4",
+        "conta": "89569",
+        "dv_conta": "5",
+    },
+    "613145000029359": {
+        "municipio": "Santos",
+        "cnpj": "10735023000106",
+        "banco": "001",
+        "agencia": "3145",
+        "dv_agencia": "3",
+        "conta": "29359",
+        "dv_conta": "8",
+    },
+}
 
 
 def remover_acentos(texto: str) -> str:
@@ -45,51 +206,8 @@ def somente_digitos(texto: str) -> str:
     return re.sub(r"\D", "", texto or "")
 
 
-@lru_cache(maxsize=1)
 def carregar_destinos() -> dict[str, dict]:
-    if not DESTINOS_CSV_PATH.exists():
-        raise RuntimeError(f"Arquivo de destinos nao encontrado: {DESTINOS_CSV_PATH}")
-
-    destinos = {}
-    cabecalho_encontrado = False
-
-    with DESTINOS_CSV_PATH.open("r", encoding="utf-8-sig", newline="") as arquivo:
-        reader = csv.reader(arquivo)
-        for row in reader:
-            row = [normalizar_espacos(coluna) for coluna in row]
-            if not row:
-                continue
-
-            if not cabecalho_encontrado:
-                if len(row) >= 10 and remover_acentos(row[2]).upper() == "MUNICIPIO":
-                    cabecalho_encontrado = True
-                continue
-
-            if len(row) < 10 or not row[2]:
-                continue
-
-            municipio, cnpj, banco, numero_extrato, agencia, dv_agencia, conta, dv_conta = row[2:10]
-            numero_extrato = somente_digitos(numero_extrato)
-            if not numero_extrato:
-                continue
-
-            if numero_extrato in destinos:
-                raise RuntimeError(f"Numero do extrato duplicado no CSV: {numero_extrato}")
-
-            destinos[numero_extrato] = {
-                "municipio": municipio,
-                "cnpj": somente_digitos(cnpj),
-                "banco": somente_digitos(banco) or "001",
-                "agencia": agencia,
-                "dv_agencia": dv_agencia.lower(),
-                "conta": conta,
-                "dv_conta": dv_conta.lower(),
-            }
-
-    if not destinos:
-        raise RuntimeError(f"Nenhum destino valido encontrado no CSV: {DESTINOS_CSV_PATH}")
-
-    return destinos
+    return DESTINOS_POR_EXTRATO
 
 
 def extrair_valor_tag(bloco: str, tag: str) -> str:
