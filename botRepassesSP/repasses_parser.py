@@ -6,8 +6,10 @@ from __future__ import annotations
 
 import io
 import re
+import subprocess
 import unicodedata
 from pathlib import Path
+from shutil import which
 
 try:
     import pdfplumber
@@ -362,6 +364,9 @@ def processar_ofx(conteudo: str) -> list[dict]:
 
 def extrair_texto_pdf(pdf_bytes: bytes) -> str:
     if pdfplumber is None:
+        texto = extrair_texto_pdf_via_pdftotext(pdf_bytes)
+        if texto.strip():
+            return texto
         raise RuntimeError("Suporte a PDF indisponivel: instale pdfplumber.")
 
     paginas = []
@@ -376,19 +381,44 @@ def extrair_texto_pdf(pdf_bytes: bytes) -> str:
             if texto:
                 paginas.append(texto)
 
-    return "\n".join(paginas)
+    texto = "\n".join(paginas)
+    if texto.strip():
+        return texto
+
+    return extrair_texto_pdf_via_pdftotext(pdf_bytes)
+
+
+def extrair_texto_pdf_via_pdftotext(pdf_bytes: bytes) -> str:
+    executavel = which("pdftotext")
+    if not executavel:
+        return ""
+
+    try:
+        resultado = subprocess.run(
+            [executavel, "-layout", "-", "-"],
+            input=pdf_bytes,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+    return resultado.stdout.decode("utf-8", errors="replace")
 
 
 def extrair_dados_conta_pdf(texto: str) -> tuple[str, str, str, str]:
-    match = re.search(
-        r"Ag[êe]ncia:\s*(\d+)-([\dxX])\s+Conta:\s*(\d+)-([\dxX])",
+    agencia_match = re.search(r"Ag[êe]ncia(?::)?\s*(\d+)-([\dxX])", texto, re.IGNORECASE)
+    conta_match = re.search(
+        r"Conta(?:\s+corrente)?(?::)?\s*(\d+)-([\dxX])",
         texto,
         re.IGNORECASE,
     )
-    if not match:
+    if not agencia_match or not conta_match:
         return "", "", "", ""
 
-    agencia, dv_agencia, conta, dv_conta = match.groups()
+    agencia, dv_agencia = agencia_match.groups()
+    conta, dv_conta = conta_match.groups()
     return agencia, dv_agencia.lower(), conta, dv_conta.lower()
 
 
@@ -403,33 +433,62 @@ def linha_pdf_cabecalho_ou_rodape(texto: str) -> bool:
     chave = remover_acentos(normalizar_espacos(texto)).upper()
     return chave in {
         "",
+        "CONSULTAS - EXTRATO DE CONTA CORRENTE",
         "EXTRATO DE CONTA CORRENTE",
+        "CLIENTE - CONTA ATUAL",
         "CLIENTE P-SOL FUNDO PARTIDARIO",
         "LANCAMENTOS",
+        "DT. BALANCETE DT. MOVIMENTO AG. ORIGEM LOTE HISTORICO",
         "DIA LOTE DOCUMENTO HISTORICO VALOR",
+        "DOCUMENTO",
+        "VALOR R$",
+        "SALDO",
         "TOTAL APLICACOES FINANCEIRAS 0,00",
         "* SALDOS POR DIA BASE",
         "SUJEITOS A CONFIRMACAO NO MOMENTO DA CONTRATACAO",
-    } or chave.startswith("AGENCIA:")
+    } or chave.startswith("AGENCIA:") or chave.startswith("AGENCIA ") or chave.startswith("CONTA CORRENTE ")
 
 
 def extrair_linha_principal_pdf(texto: str) -> dict | None:
+    texto_normalizado = normalizar_espacos(texto)
+
     match = re.match(
         r"^(?P<lote>\d+)"
         r"(?:\s+(?P<documento>\d{2,20}))?"
         r"(?:\s+(?P<historico>.*?))?"
         r"\s+(?P<valor>[\d.]+,\d{2})\s+\((?P<sinal>[+-])\)$",
-        normalizar_espacos(texto),
+        texto_normalizado,
+    )
+    if match:
+        return {
+            "data": "",
+            "lote": match.group("lote") or "",
+            "documento": somente_digitos(match.group("documento") or ""),
+            "historico": normalizar_espacos(match.group("historico") or ""),
+            "valor": match.group("valor") or "",
+            "sinal": match.group("sinal") or "",
+        }
+
+    match = re.match(
+        r"^(?:(?P<data>\d{2}/\d{2}/\d{4})\s+)?"
+        r"(?:(?P<agencia>\d{4})\s+)?"
+        r"(?P<lote>\d{5}(?:\s*\d{3})?)"
+        r"\s+(?P<historico>.*?)"
+        r"\s+(?P<documento>\d[\d.]*)"
+        r"\s+(?P<valor>[\d.]+,\d{2})\s+(?P<sinal>[DC])"
+        r"(?:\s*[\d.]+,\d{2}\s+[DC])?$",
+        texto_normalizado,
     )
     if not match:
         return None
 
     return {
-        "lote": match.group("lote") or "",
+        "data": match.group("data") or "",
+        "lote": somente_digitos(match.group("lote") or ""),
         "documento": somente_digitos(match.group("documento") or ""),
         "historico": normalizar_espacos(match.group("historico") or ""),
         "valor": match.group("valor") or "",
-        "sinal": match.group("sinal") or "",
+        "sinal": "-" if (match.group("sinal") or "").upper() == "D" else "+",
     }
 
 
@@ -545,6 +604,7 @@ def processar_pdf(pdf_bytes: bytes) -> list[dict]:
             continue
 
         data, descricoes = extrair_contexto_pdf(linhas, idx)
+        data = principal.get("data") or data
         if not data or data == "00/00/0000":
             continue
         if bloco_pdf_eh_resumo(data, descricoes, principal):
