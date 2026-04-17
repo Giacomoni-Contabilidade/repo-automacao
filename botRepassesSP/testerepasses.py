@@ -2,28 +2,27 @@
 # -*- coding: utf-8 -*-
 """
 Script para leitura de arquivos OFX ou PDF e geracao de CSV com dados
-para importacao de Doacoes Financeiras a Partidos e Candidatos (SPCA Cadastro).
+para importacao de repasses aos diretorios municipais de SP.
 
 Uso:
-    python testedoaca.py arquivo1.ofx arquivo2.pdf [-o saida.csv]
+    python testerepasses.py arquivo1.ofx arquivo2.pdf [-o saida.csv]
 """
 
-import sys
-import os
+import argparse
 import csv
 import io
-import argparse
+import os
+import sys
 
 import httpx
 
-from doacoes_parser import processar_caminho_arquivo
+from repasses_parser import processar_caminho_arquivo
 
 
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzriEVGMb23KfoqDpYNX8vqUZTFJzRXF2FXiIk2sVCqiTUhmxAz5X1INHwsc1BZEAT3xw/exec"
 
 
-def enviar_para_sheets(csv_string, sheet_name="Preencher Dados"):
-    """Envia o CSV para o Google Sheets via Apps Script."""
+def enviar_para_sheets(csv_string: str, sheet_name: str = "Preencher Dados"):
     print(f"\nEnviando para Google Sheets (aba: {sheet_name})...")
     with httpx.Client(follow_redirects=True, timeout=60) as client:
         resp = client.post(
@@ -45,7 +44,6 @@ def enviar_para_sheets(csv_string, sheet_name="Preencher Dados"):
 
 
 def processar_arquivos(caminhos_entrada, caminho_csv, sheet_name="Preencher Dados"):
-    """Processa arquivos OFX/PDF e gera o CSV."""
     registros = []
 
     for caminho in caminhos_entrada:
@@ -59,7 +57,13 @@ def processar_arquivos(caminhos_entrada, caminho_csv, sheet_name="Preencher Dado
         print(f"  Lancamentos aceitos: {len(registros_arquivo)}")
         registros.extend(registros_arquivo)
 
-    registros.sort(key=lambda registro: (registro["dtDoacao"], registro["uf"], registro["nrExtratoBancario"]))
+    registros.sort(
+        key=lambda registro: (
+            registro["dtDoacao"],
+            registro.get("municipio", ""),
+            registro["nrExtratoBancario"],
+        )
+    )
 
     for indice, registro in enumerate(registros, start=1):
         registro["nrLancamento"] = str(indice)
@@ -84,20 +88,20 @@ def processar_arquivos(caminhos_entrada, caminho_csv, sheet_name="Preencher Dado
     print(f"{'=' * 60}")
 
     if registros:
-        resumo_uf = {}
+        resumo_municipio = {}
         for registro in registros:
-            uf = registro["uf"]
+            municipio = registro.get("municipio", "")
             valor = float(registro["valorDoacao"])
-            if uf not in resumo_uf:
-                resumo_uf[uf] = {"qtd": 0, "total": 0.0}
-            resumo_uf[uf]["qtd"] += 1
-            resumo_uf[uf]["total"] += valor
+            if municipio not in resumo_municipio:
+                resumo_municipio[municipio] = {"qtd": 0, "total": 0.0}
+            resumo_municipio[municipio]["qtd"] += 1
+            resumo_municipio[municipio]["total"] += valor
 
-        print(f"\n  {'UF':<6} {'Qtd':>5} {'Valor Total':>15}")
-        print(f"  {'-' * 28}")
-        for uf in sorted(resumo_uf):
-            dados = resumo_uf[uf]
-            print(f"  {uf:<6} {dados['qtd']:>5} {dados['total']:>15,.2f}")
+        print(f"\n  {'Municipio':<28} {'Qtd':>5} {'Valor Total':>15}")
+        print(f"  {'-' * 50}")
+        for municipio in sorted(resumo_municipio):
+            dados = resumo_municipio[municipio]
+            print(f"  {municipio:<28} {dados['qtd']:>5} {dados['total']:>15,.2f}")
 
         enviar_para_sheets(csv_string, sheet_name)
 
@@ -106,7 +110,7 @@ def processar_arquivos(caminhos_entrada, caminho_csv, sheet_name="Preencher Dado
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Converte OFX/PDF em CSV para importacao SPCA - Doacoes Financeiras"
+        description="Converte OFX/PDF em CSV para importacao SPCA - Repasses Municipais SP"
     )
     parser.add_argument(
         "arquivos",
@@ -116,8 +120,8 @@ def main():
     parser.add_argument(
         "-o",
         "--output",
-        default="doacoes_financeiras.csv",
-        help="Caminho do arquivo CSV de saida (padrao: doacoes_financeiras.csv)",
+        default="repasses_sp.csv",
+        help="Caminho do arquivo CSV de saida (padrao: repasses_sp.csv)",
     )
     parser.add_argument(
         "-s",

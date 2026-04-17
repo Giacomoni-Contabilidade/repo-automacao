@@ -1,20 +1,21 @@
 """
-API que recebe arquivos OFX ou PDF de doacoes financeiras (SPCA Cadastro)
+API que recebe arquivos OFX ou PDF de repasses para diretorios municipais de SP
 e cola o CSV resultante numa planilha Google.
 """
 
-import io
 import csv
+import io
 
 import httpx
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
 
-from doacoes_parser import processar_bytes_arquivo
+from repasses_parser import processar_bytes_arquivo
 
-app = FastAPI(title="Bot Doacoes - OFX/PDF to Google Sheets")
+
+app = FastAPI(title="Bot Repasses SP - OFX/PDF to Google Sheets")
 
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzriEVGMb23KfoqDpYNX8vqUZTFJzRXF2FXiIk2sVCqiTUhmxAz5X1INHwsc1BZEAT3xw/exec"
 
@@ -67,9 +68,15 @@ async def converter(arquivos: list[UploadFile] = File(...)):
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     if not todos_registros:
-        raise HTTPException(status_code=400, detail="Nenhuma doacao encontrada nos arquivos OFX/PDF.")
+        raise HTTPException(status_code=400, detail="Nenhum repasse encontrado nos arquivos OFX/PDF.")
 
-    todos_registros.sort(key=lambda registro: (registro["dtDoacao"], registro["uf"], registro["nrExtratoBancario"]))
+    todos_registros.sort(
+        key=lambda registro: (
+            registro["dtDoacao"],
+            registro.get("municipio", ""),
+            registro["nrExtratoBancario"],
+        )
+    )
 
     for indice, registro in enumerate(todos_registros, start=1):
         registro["nrLancamento"] = str(indice)
@@ -95,7 +102,6 @@ async def converter(arquivos: list[UploadFile] = File(...)):
         raise HTTPException(status_code=502, detail=f"Erro ao enviar para Google Sheets: {resp.text}")
 
     result = resp.json()
-
     return JSONResponse(
         {
             "status": "success",
