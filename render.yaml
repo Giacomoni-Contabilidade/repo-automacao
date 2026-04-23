@@ -129,3 +129,16 @@ services:
     buildFilter:
       paths:
         - botRpaVlrLiqDirNacional/**
+  - type: web
+    name: bot-xml-para-pdf
+    runtime: python
+    plan: free
+    region: virginia
+    autoDeployTrigger: commit
+    rootDir: botXmlParaPdf
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /openapi.json
+    buildFilter:
+      paths:
+        - botXmlParaPdf/**
