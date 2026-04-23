@@ -16,3 +16,5 @@ Thumbs.db
 testar.py
 esbagaçar.py
 dls.json
+*.pdf
+*.xml
