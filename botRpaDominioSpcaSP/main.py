@@ -194,7 +194,7 @@ def extrair_registros_do_texto(texto: str, competencia_padrao: str | None = None
                 "nrCpf": nr_cpf,
                 "nmPessoa": nome,
                 "descricao": descricao,
-                "dataEmissaoContratacao": metadados["dataEmissaoContratacao"],
+                "dataEmissaoContratacao": metadados[""],
                 "vrTotalDocumento": vr_total_documento,
                 "cdDescricaoGasto": cd_descricao_gasto,
                 "vrGasto": vr_total_documento,
